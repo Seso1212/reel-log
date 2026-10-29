@@ -232,7 +232,8 @@ button.thumb:hover{border-color:var(--fg)}
 .tag{display:inline-block;margin-left:8px;padding:1px 7px;border:1px dashed var(--mute);border-radius:99px;font:500 10px var(--mono);letter-spacing:.06em;text-transform:uppercase;color:var(--mute);vertical-align:2px;font-weight:500}
 .rowact{display:flex;gap:2px;justify-content:flex-end;white-space:nowrap}
 .icobtn{width:32px;height:32px;display:grid;place-items:center;border:1px solid transparent;border-radius:8px;background:transparent;color:var(--mute)}
-.icobtn:hover{color:var(--fg);border-color:var(--line);background:var(--bg)}
+.icobtn:hover{color:var(--fg);border-color:var(--mute);background:var(--bg)}
+.icobtn.pen{color:var(--fg);border-color:var(--line)}
 .confirm{display:inline-flex;align-items:center;gap:8px;font-size:12px;font-weight:550}
 .confirm button{height:28px;padding:0 10px;border-radius:7px;border:1px solid var(--fg);background:var(--bg);font-weight:600;font-size:12px}
 .confirm button.yes{background:var(--ink);color:var(--on-ink)}
@@ -276,6 +277,13 @@ button.thumb:hover{border-color:var(--fg)}
   .tbl td.act{justify-content:flex-end;border-top:1px solid var(--line);margin-top:6px;padding-top:10px}
   .menu-wrap{margin-left:0}
 }
+.ecard{background:var(--bg);color:var(--fg);border:1px solid var(--fg);border-radius:16px;width:min(700px,100%);max-height:calc(100dvh - 48px);display:flex;flex-direction:column;box-shadow:0 24px 60px rgba(0,0,0,.35)}
+.ehead{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;padding:18px 20px 14px;border-bottom:1px solid var(--line)}
+.ehead h3{font-size:18px;font-weight:650;letter-spacing:-.02em}
+.ebody{overflow:auto;padding:18px 20px;min-height:0}
+.efoot{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;padding:14px 20px;border-top:1px solid var(--line)}
+.efoot .row{margin-left:auto}
+@media (max-width:720px){.overlay{padding:12px}.ecard{max-height:calc(100dvh - 24px)}}
 @media (prefers-reduced-motion:reduce){*{transition:none!important}}
 </style>
 </head>
@@ -309,10 +317,6 @@ button.thumb:hover{border-color:var(--fg)}
 
       <div class="add">
         <form id="form" novalidate autocomplete="off">
-          <div class="editing" id="editBanner" hidden>
-            <span id="editText">Editing row</span>
-            <button type="button" class="linkbtn" id="cancelEdit">Cancel</button>
-          </div>
           <div class="grid">
             <div class="field c12">
               <label for="f-reel">Reel link <span class="opt">Instagram, TikTok or Facebook</span></label>
@@ -443,6 +447,88 @@ button.thumb:hover{border-color:var(--fg)}
   </div>
 </div>
 
+<div class="overlay" id="editbox" hidden role="dialog" aria-modal="true" aria-labelledby="mTitle">
+  <form class="ecard" id="mform" novalidate autocomplete="off">
+    <div class="ehead">
+      <div><h3 id="mTitle">Edit product</h3><span class="hint" id="mSub"></span></div>
+      <button type="button" class="icobtn" id="mX" aria-label="Close without saving"><svg viewBox="0 0 16 16" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" aria-hidden="true"><path d="M3.5 3.5l9 9M12.5 3.5l-9 9"/></svg></button>
+    </div>
+    <div class="ebody">
+      <div class="grid">
+        <div class="field c12">
+          <label for="m-reel">Reel link</label>
+          <input class="in" id="m-reel" type="text" inputmode="url" placeholder="https://www.instagram.com/reel/…">
+          <div class="err" id="me-reel" role="alert"></div>
+        </div>
+        <div class="field c12">
+          <label for="m-name">Product name</label>
+          <input class="in" id="m-name" type="text">
+          <div class="err" id="me-name" role="alert"></div>
+        </div>
+        <div class="field c12">
+          <span class="lbl" id="mPhotoLbl">Product photo</span>
+          <div class="drop" id="mDrop" aria-labelledby="mPhotoLbl">
+            <div class="thumb-lg" id="mThumb"></div>
+            <div class="drop-body">
+              <strong>Drop an image, or paste a screenshot with Ctrl/⌘ + V</strong>
+              <div class="row">
+                <button type="button" class="btn sm" id="mPick">Replace photo</button>
+                <button type="button" class="btn sm" id="mRm" hidden>Remove photo</button>
+              </div>
+              <span class="hint" id="mPhotoMsg">JPG, PNG or WebP.</span>
+            </div>
+            <input type="file" id="mFile" accept="image/*" hidden>
+          </div>
+        </div>
+        <div class="field c4">
+          <label for="m-price">Best price</label>
+          <div class="group">
+            <div class="seg sm" role="radiogroup" aria-label="Currency">
+              <label><input type="radio" name="mcur" value="USD" checked><span>$</span></label>
+              <label><input type="radio" name="mcur" value="CNY"><span>¥</span></label>
+            </div>
+            <input class="in mono" id="m-price" type="text" inputmode="decimal" placeholder="0.00">
+          </div>
+          <div class="err" id="me-price" role="alert"></div>
+        </div>
+        <div class="field c4">
+          <label for="m-platform">Platform</label>
+          <input class="in" id="m-platform" list="platforms" type="text">
+        </div>
+        <div class="field c4">
+          <label for="m-seller">Best seller</label>
+          <input class="in" id="m-seller" type="text">
+        </div>
+        <div class="field c8">
+          <label for="m-link">Product link</label>
+          <input class="in" id="m-link" type="text" inputmode="url" placeholder="https://detail.1688.com/offer/…">
+          <div class="err" id="me-link" role="alert"></div>
+        </div>
+        <div class="field c4">
+          <label for="m-moq">MOQ</label>
+          <input class="in mono" id="m-moq" type="text" inputmode="numeric">
+          <div class="err" id="me-moq" role="alert"></div>
+        </div>
+        <div class="field c12">
+          <span class="lbl" id="mStatusLbl">Status</span>
+          <div class="seg" role="radiogroup" aria-labelledby="mStatusLbl" id="mStatusSeg"></div>
+        </div>
+        <div class="field c12">
+          <label for="m-notes">Notes</label>
+          <textarea class="in" id="m-notes" rows="2"></textarea>
+        </div>
+      </div>
+    </div>
+    <div class="efoot">
+      <div id="mDelWrap"></div>
+      <div class="row">
+        <button type="button" class="btn" id="mCancel">Cancel</button>
+        <button type="submit" class="btn primary" id="mSave">Save changes</button>
+      </div>
+    </div>
+  </form>
+</div>
+
 <div class="overlay" id="copybox" hidden role="dialog" aria-modal="true" aria-label="Copy table">
   <div class="cbox">
     <strong>Copy this table</strong>
@@ -469,7 +555,7 @@ var SYM={USD:'$',CNY:'¥'};
 var LS='reel-sourcing-log-v1';
 
 var items=[],loaded=false,backend='local',dbCol=null,dl=null;
-var filter='all',query='',editingId=null,formPhoto=null,pendingDel=null,tab='add';
+var filter='all',query='',formPhoto=null,pendingDel=null,tab='add';
 
 /* ---------- helpers ---------- */
 function esc(s){return String(s==null?'':s).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]})}
@@ -590,10 +676,10 @@ function validate(v){
   if(v.moq!==''){moq=Math.floor(Number(v.moq));if(!isFinite(moq)||moq<1)err.moq='Use a whole number, 1 or more.'}
   return {err:err,val:{reel:reel||'',name:v.name,price:price,cur:v.cur,platform:v.platform,seller:v.seller,link:link||'',moq:moq,status:v.status,notes:v.notes}};
 }
-var FIELDS={name:'#f-name',reel:'#f-reel',price:'#f-price',link:'#f-link',moq:'#f-moq'};
-function showErrors(err){
-  Object.keys(FIELDS).forEach(function(k){
-    var inp=$(FIELDS[k]),e=$('#e-'+k);
+function fld(k,m){return '#'+(m?'m':'f')+'-'+k}
+function showErrors(err,m){
+  ['name','reel','price','link','moq'].forEach(function(k){
+    var inp=$(fld(k,m)),e=$('#'+(m?'me':'e')+'-'+k);
     e.textContent=err[k]||'';
     if(err[k])inp.setAttribute('aria-invalid','true');else inp.removeAttribute('aria-invalid');
   });
@@ -617,49 +703,104 @@ function setForm(it){
   }
   showErrors({});renderPhotoBox();$('#photoMsg').textContent='JPG, PNG or WebP. Resized to keep the list light.';renderLive();
 }
-function setEditing(id){
-  editingId=id;
-  var on=!!id;
-  $('#editBanner').hidden=!on;
-  $('#addTitle').textContent=on?'Edit product':'Add a product';
-  $('#submitBtn').textContent=on?'Save changes':'Add product';
-  $('#clearBtn').textContent=on?'Discard changes':'Clear form';
-  if(on){var i=items.findIndex(function(x){return x.id===id});$('#editText').textContent='Editing row #'+(i+1)}
-}
-function startEdit(id){
-  var it=items.find(function(x){return x.id===id});if(!it)return;
-  setEditing(id);setForm(it);setTab('add',true);
-  window.scrollTo({top:0});$('#f-name').focus();
-}
-function endEdit(){setEditing(null);setForm(null)}
 async function onSubmit(e){
   e.preventDefault();
   var r=validate(readForm());showErrors(r.err);
-  var bad=Object.keys(r.err);
-  if(bad.length){var first=['name','reel','price','link','moq'].find(function(k){return r.err[k]});$(FIELDS[first]).focus();return}
-  var now=Date.now(),old=editingId?items.find(function(x){return x.id===editingId}):null,it;
-  var ph={photo:formPhoto?formPhoto.data:'',pw:formPhoto?formPhoto.w:0,ph:formPhoto?formPhoto.h:0};
-  if(editingId){
-    it=Object.assign({},old||{createdAt:now},r.val,ph,{id:editingId,sample:false,updatedAt:now});
-  }else{
-    it=Object.assign({id:newId()},r.val,ph,{sample:false,createdAt:now,updatedAt:now});
-  }
+  var first=['name','reel','price','link','moq'].find(function(k){return r.err[k]});
+  if(first){$(fld(first)).focus();return}
+  var now=Date.now(),n=items.length+1;
+  var it=Object.assign({id:newId()},r.val,{photo:formPhoto?formPhoto.data:'',pw:formPhoto?formPhoto.w:0,ph:formPhoto?formPhoto.h:0,sample:false,createdAt:now,updatedAt:now});
   var btn=$('#submitBtn');btn.disabled=true;
-  var wasEdit=!!editingId,n=wasEdit?items.findIndex(function(x){return x.id===editingId})+1:items.length+1;
   try{
-    await putItem(it);
-    toast(wasEdit?'Saved changes to #'+n:'Added as #'+n);
+    await putItem(it);toast('Added as #'+n);
     var keepPlat=$('#f-platform').value,keepCur=document.querySelector('input[name=cur]:checked').value;
-    if(wasEdit){endEdit();setTab('preview',true)}
-    else{setForm(null);$('#f-platform').value=keepPlat;document.querySelector('input[name=cur][value='+keepCur+']').checked=true;renderLive();$('#f-reel').focus()}
+    setForm(null);$('#f-platform').value=keepPlat;document.querySelector('input[name=cur][value='+keepCur+']').checked=true;renderLive();$('#f-reel').focus();
   }catch(er){toast(errMsg(er))}
   finally{btn.disabled=false}
+}
+
+/* ---------- edit card (pop-up on the Preview tab) ---------- */
+var editId=null,mPhoto=null,mDelAsk=false;
+function readM(){
+  return {
+    reel:$('#m-reel').value.trim(),name:$('#m-name').value.trim(),price:$('#m-price').value.trim().replace(',','.'),
+    cur:document.querySelector('input[name=mcur]:checked').value,platform:$('#m-platform').value.trim(),
+    seller:$('#m-seller').value.trim(),link:$('#m-link').value.trim(),moq:$('#m-moq').value.trim(),
+    status:document.querySelector('input[name=mstatus]:checked').value,notes:$('#m-notes').value.trim()
+  };
+}
+function renderMPhoto(){
+  $('#mThumb').innerHTML=mPhoto?'<img alt="Product photo" src="'+mPhoto.data+'">':svg(IC.img,28);
+  $('#mRm').hidden=!mPhoto;
+}
+function renderMDel(){
+  $('#mDelWrap').innerHTML=mDelAsk
+    ?'<span class="confirm">Delete this row?<button type="button" class="yes" data-m="delyes">Delete</button><button type="button" data-m="delno">Keep</button></span>'
+    :'<button type="button" class="linkbtn" data-m="del">Delete row</button>';
+}
+function openEdit(id){
+  var it=items.find(function(x){return x.id===id});if(!it)return;
+  editId=id;mDelAsk=false;
+  $('#m-reel').value=it.reel||'';$('#m-name').value=it.name||'';
+  $('#m-price').value=it.price!=null?String(it.price):'';
+  $('#m-platform').value=it.platform||'';$('#m-seller').value=it.seller||'';
+  $('#m-link').value=it.link||'';$('#m-moq').value=it.moq!=null?String(it.moq):'';
+  $('#m-notes').value=it.notes||'';
+  document.querySelector('input[name=mcur][value='+(it.cur==='CNY'?'CNY':'USD')+']').checked=true;
+  document.querySelector('input[name=mstatus][value='+(SBY[it.status]?it.status:'todo')+']').checked=true;
+  mPhoto=it.photo?{data:it.photo,w:it.pw||0,h:it.ph||0}:null;
+  showErrors({},true);renderMPhoto();renderMDel();
+  $('#mPhotoMsg').textContent='JPG, PNG or WebP.';
+  $('#mSub').textContent='Row #'+(items.indexOf(it)+1);
+  $('#editbox').hidden=false;$('#m-name').focus();
+}
+function closeEdit(){$('#editbox').hidden=true;editId=null;mDelAsk=false}
+async function setMPhoto(file){
+  if(!file||!/^image\//.test(file.type)){$('#mPhotoMsg').textContent='That file is not an image. Use JPG, PNG or WebP.';return}
+  try{mPhoto=await compress(file);$('#mPhotoMsg').textContent='New photo ready. Save changes to keep it.'}
+  catch(e){$('#mPhotoMsg').textContent='Could not read that image. Try a JPG or PNG.'}
+  renderMPhoto();
+}
+async function onEditSave(e){
+  e.preventDefault();
+  var r=validate(readM());showErrors(r.err,true);
+  var first=['name','reel','price','link','moq'].find(function(k){return r.err[k]});
+  if(first){$(fld(first,true)).focus();return}
+  var old=items.find(function(x){return x.id===editId}),now=Date.now();
+  var it=Object.assign({},old||{createdAt:now},r.val,{photo:mPhoto?mPhoto.data:'',pw:mPhoto?mPhoto.w:0,ph:mPhoto?mPhoto.h:0},{id:editId,sample:false,updatedAt:now});
+  var n=items.findIndex(function(x){return x.id===editId})+1,btn=$('#mSave');btn.disabled=true;
+  try{await putItem(it);toast('Saved changes to #'+n);closeEdit()}
+  catch(er){toast(errMsg(er))}
+  finally{btn.disabled=false}
+}
+function bindEdit(){
+  $('#mStatusSeg').innerHTML=STATUS.map(function(s){
+    return '<label><input type="radio" name="mstatus" value="'+s.id+'"><span><i class="dot d-'+s.id+'"></i>'+s.label+'</span></label>';
+  }).join('');
+  var f=$('#mform'),file=$('#mFile'),drop=$('#mDrop');
+  f.addEventListener('submit',onEditSave);
+  f.addEventListener('keydown',function(e){if((e.ctrlKey||e.metaKey)&&e.key==='Enter'){e.preventDefault();f.requestSubmit()}});
+  $('#mX').addEventListener('click',closeEdit);
+  $('#mCancel').addEventListener('click',closeEdit);
+  $('#mPick').addEventListener('click',function(){file.click()});
+  file.addEventListener('change',function(){if(file.files[0])setMPhoto(file.files[0]);file.value=''});
+  $('#mRm').addEventListener('click',function(){mPhoto=null;renderMPhoto();$('#mPhotoMsg').textContent='Photo removed. Save changes to keep this.'});
+  ['dragenter','dragover'].forEach(function(n){drop.addEventListener(n,function(e){e.preventDefault();drop.classList.add('over')})});
+  ['dragleave','drop'].forEach(function(n){drop.addEventListener(n,function(e){e.preventDefault();drop.classList.remove('over')})});
+  drop.addEventListener('drop',function(e){var x=e.dataTransfer&&e.dataTransfer.files[0];if(x)setMPhoto(x)});
+  f.addEventListener('click',function(e){
+    var b=e.target.closest('[data-m]');if(!b)return;
+    var a=b.dataset.m;
+    if(a==='del'){mDelAsk=true;renderMDel()}
+    else if(a==='delno'){mDelAsk=false;renderMDel()}
+    else if(a==='delyes'){var id=editId;closeEdit();removeItem(id).then(function(){toast('Row deleted')},function(er){toast(errMsg(er))})}
+  });
 }
 
 /* ---------- live row card ---------- */
 function statusChip(st){var s=SBY[st]||SBY.checking;return '<span class="chip s-'+s.id+'"><span class="dot d-'+s.id+'"></span>'+s.label+'</span>'}
 function renderLive(){
-  var v=readForm(),n=editingId?items.findIndex(function(x){return x.id===editingId})+1:items.length+1;
+  var v=readForm(),n=items.length+1;
   var price=v.price!==''&&isFinite(Number(v.price))&&Number(v.price)>=0;
   var reelOk=v.reel&&normUrl(v.reel),linkOk=v.link&&normUrl(v.link);
   $('#live').innerHTML=
@@ -696,7 +837,7 @@ function rowHtml(r){
   var photo=it.photo?'<button type="button" class="thumb" data-act="photo" data-id="'+id+'" aria-label="View photo of '+esc(it.name)+'"><img alt="" src="'+it.photo+'"></button>':'<span class="thumb" aria-hidden="true">'+svg(IC.img,18)+'</span>';
   var act=pendingDel===it.id
     ?'<span class="confirm">Delete this row?<button type="button" class="yes" data-act="delyes" data-id="'+id+'">Delete</button><button type="button" data-act="delno">Keep</button></span>'
-    :'<span class="rowact"><button type="button" class="icobtn" data-act="edit" data-id="'+id+'" aria-label="Edit '+esc(it.name)+'">'+svg(IC.edit,15)+'</button><button type="button" class="icobtn" data-act="del" data-id="'+id+'" aria-label="Delete '+esc(it.name)+'">'+svg(IC.trash,15)+'</button></span>';
+    :'<span class="rowact"><button type="button" class="icobtn pen" data-act="edit" data-id="'+id+'" title="Edit" aria-label="Edit '+esc(it.name)+'">'+svg(IC.edit,15)+'</button><button type="button" class="icobtn" data-act="del" data-id="'+id+'" aria-label="Delete '+esc(it.name)+'">'+svg(IC.trash,15)+'</button></span>';
   return '<tr>'+
     '<td class="num" data-label="#">'+r.n+'</td>'+
     '<td data-label="Reel Link">'+link(it.reel,'Reel')+'</td>'+
@@ -869,8 +1010,7 @@ function bind(){
   form.addEventListener('input',renderLive);
   form.addEventListener('change',renderLive);
   form.addEventListener('keydown',function(e){if((e.ctrlKey||e.metaKey)&&e.key==='Enter'){e.preventDefault();form.requestSubmit()}});
-  $('#clearBtn').addEventListener('click',function(){if(editingId)endEdit();else setForm(null);$('#f-reel').focus()});
-  $('#cancelEdit').addEventListener('click',endEdit);
+  $('#clearBtn').addEventListener('click',function(){setForm(null);$('#f-reel').focus()});
 
   var file=$('#file'),drop=$('#drop');
   $('#pickBtn').addEventListener('click',function(){file.click()});
@@ -880,10 +1020,11 @@ function bind(){
   ['dragleave','drop'].forEach(function(n){drop.addEventListener(n,function(e){e.preventDefault();drop.classList.remove('over')})});
   drop.addEventListener('drop',function(e){var f=e.dataTransfer&&e.dataTransfer.files[0];if(f)setPhoto(f)});
   document.addEventListener('paste',function(e){
-    if(tab!=='add')return;
+    var inM=!$('#editbox').hidden;
+    if(!inM&&tab!=='add')return;
     var fs=e.clipboardData&&e.clipboardData.files?Array.prototype.slice.call(e.clipboardData.files):[];
     var f=fs.find(function(x){return /^image\//.test(x.type)});
-    if(f){e.preventDefault();setPhoto(f)}
+    if(f){e.preventDefault();if(inM)setMPhoto(f);else setPhoto(f)}
   });
 
   $('#q').addEventListener('input',function(e){query=e.target.value;renderPreview()});
@@ -894,7 +1035,7 @@ function bind(){
     var go=e.target.closest('[data-go]');if(go){setTab(go.dataset.go,true);$('#f-reel').focus();return}
     var b=e.target.closest('[data-act]');if(!b)return;
     var act=b.dataset.act,id=b.dataset.id;
-    if(act==='edit')startEdit(id);
+    if(act==='edit')openEdit(id);
     else if(act==='del'){pendingDel=id;renderPreview()}
     else if(act==='delno'){pendingDel=null;renderPreview()}
     else if(act==='delyes'){pendingDel=null;removeItem(id).then(function(){toast('Row deleted')},function(er){toast(errMsg(er));renderPreview()})}
@@ -927,12 +1068,12 @@ function bind(){
   $('#copySelect').addEventListener('click',function(){$('#copyArea').focus();$('#copyArea').select()});
   $('#copybox').addEventListener('click',function(e){if(e.target===e.currentTarget)$('#copybox').hidden=true});
   document.addEventListener('keydown',function(e){
-    if(e.key==='Escape'){closeLb();$('#copybox').hidden=true;closeMenu();if(pendingDel){pendingDel=null;renderPreview()}}
+    if(e.key==='Escape'){if(!$('#editbox').hidden)closeEdit();closeLb();$('#copybox').hidden=true;closeMenu();if(pendingDel){pendingDel=null;renderPreview()}}
   });
 }
 
 /* ---------- boot ---------- */
-icons();buildFilters();bind();renderPhotoBox();
+icons();buildFilters();bind();bindEdit();renderPhotoBox();
 var h0='';try{h0=location.hash.slice(1)}catch(e){}
 setTab(h0==='preview'?'preview':'add',false);
 renderAll();
