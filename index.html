@@ -553,6 +553,9 @@ var STATUS=[
 var SBY={};STATUS.forEach(function(s){SBY[s.id]=s});
 var SYM={USD:'$',CNY:'¥'};
 var LS='reel-sourcing-log-v1';
+/* ===== CLOUD SYNC: paste your Supabase values between the quotes ===== */
+var SB={url:'',key:''};
+/* ===================================================================== */
 
 var items=[],loaded=false,backend='local',dbCol=null,dl=null;
 var filter='all',query='',formPhoto=null,pendingDel=null,tab='add';
@@ -582,6 +585,7 @@ function toast(m){var t=$('#toast');t.textContent=m;t.hidden=false;clearTimeout(
 function sortItems(){items.sort(function(a,b){return (a.createdAt||0)-(b.createdAt||0)||String(a.id).localeCompare(String(b.id))})}
 function errMsg(e){
   var c=e&&e.code;
+  if(c==='sb')return 'Could not reach the cloud database. Check your connection and try again.';
   if(c==='quota_exceeded')return 'Storage is full. Delete some rows or photos first.';
   if(c==='invalid_argument')return 'You do not have permission to change this list.';
   if(e&&e.message==='full')return 'Browser storage is full. Delete some photos first.';
@@ -593,9 +597,56 @@ function lsRead(){try{return JSON.parse(localStorage.getItem(LS)||'[]')}catch(e)
 function lsWrite(){try{localStorage.setItem(LS,JSON.stringify(items));return true}catch(e){return false}}
 function setSave(kind){
   var el=$('#saveState');el.className='savestate'+(kind==='local'?' local':'');
-  el.lastElementChild.textContent=kind==='db'?'Saved to the shared list':kind==='local'?'Saved on this device only':'Sync paused';
+  el.lastElementChild.textContent=kind==='db'?'Saved to the shared list':kind==='sb'?'Synced on all devices':kind==='local'?'Saved on this device only':'Sync paused';
+}
+function sbFetch(path,opt){
+  opt=opt||{};
+  var h=Object.assign({apikey:SB.key,Authorization:'Bearer '+SB.key,'Content-Type':'application/json'},opt.headers||{});
+  return fetch(SB.url.replace(/\/+$/,'')+'/rest/v1/'+path,{method:opt.method||'GET',headers:h,body:opt.body}).then(function(r){
+    if(!r.ok)return r.text().then(function(t){throw {code:'sb',message:t}});
+    return r.text().then(function(t){return t?JSON.parse(t):null});
+  });
+}
+var sbPending=0,sbSig='';
+function sbLoad(){
+  if(sbPending>0)return Promise.resolve();
+  return sbFetch('products?select=id,data').then(function(rows){
+    if(sbPending>0)return;
+    var list=(rows||[]).map(function(r){var o=Object.assign({},r.data);o.id=r.id;return o});
+    var sig=list.map(function(x){return x.id+':'+(x.updatedAt||0)}).sort().join('|');
+    if(loaded&&sig===sbSig)return;
+    sbSig=sig;items=list;sortItems();loaded=true;setSave('sb');renderAll();
+  });
+}
+function sbPut(it){
+  var i=items.findIndex(function(x){return x.id===it.id});
+  if(i>=0)items[i]=it;else items.push(it);
+  sortItems();renderAll();
+  var data=Object.assign({},it);delete data.id;
+  sbPending++;
+  return sbFetch('products',{method:'POST',headers:{Prefer:'resolution=merge-duplicates,return=minimal'},body:JSON.stringify({id:it.id,data:data})})
+    .then(function(){sbPending--;sbSig=''},function(e){sbPending--;sbSig='';sbLoad().catch(function(){});throw e});
+}
+function sbRemove(id){
+  items=items.filter(function(x){return x.id!==id});renderAll();
+  sbPending++;
+  return sbFetch('products?id=eq.'+encodeURIComponent(id),{method:'DELETE',headers:{Prefer:'return=minimal'}})
+    .then(function(){sbPending--;sbSig=''},function(e){sbPending--;sbSig='';sbLoad().catch(function(){});throw e});
+}
+async function startSb(){
+  backend='sb';
+  try{
+    await sbLoad();
+    if(!items.length){
+      var loc=lsRead().filter(function(x){return !x.sample});
+      for(var i=0;i<loc.length;i++)await sbPut(loc[i]);
+    }
+  }catch(e){startLocal();toast('Cloud database not reachable. Saving on this device only.');return}
+  setInterval(function(){sbLoad().catch(function(){})},12000);
+  document.addEventListener('visibilitychange',function(){if(!document.hidden)sbLoad().catch(function(){})});
 }
 function putItem(it){
+  if(backend==='sb')return sbPut(it);
   var data={},k;for(k in it){if(k!=='id')data[k]=it[k]}
   if(backend==='db')return dbCol.doc(it.id).set(data);
   var i=items.findIndex(function(x){return x.id===it.id});
@@ -605,6 +656,7 @@ function putItem(it){
   renderAll();return Promise.resolve();
 }
 function removeItem(id){
+  if(backend==='sb')return sbRemove(id);
   if(backend==='db')return dbCol.doc(id).delete();
   items=items.filter(function(x){return x.id!==id});lsWrite();renderAll();return Promise.resolve();
 }
@@ -621,6 +673,7 @@ async function initStore(){
     document.body.appendChild(a);a.click();a.remove();setTimeout(function(){URL.revokeObjectURL(u)},4000);res({status:'saved'});
   })}}}
   renderExportMenu();
+  if(!db&&SB.url&&SB.key){startSb();return}
   if(!db){startLocal();return}
   backend='db';dbCol=db.collection('products');
   try{
