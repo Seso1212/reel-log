@@ -78,6 +78,8 @@ h1,h2,h3,p{margin:0}
 .head{display:flex;align-items:flex-end;justify-content:space-between;gap:12px;flex-wrap:wrap;padding-block:28px 20px}
 .head h2{font-size:26px;font-weight:650;letter-spacing:-.025em;line-height:1.15;text-wrap:balance}
 .head p{color:var(--mute);margin-top:6px;max-width:60ch}
+.syncbar{display:flex;gap:12px;align-items:center;justify-content:space-between;flex-wrap:wrap;margin-top:16px;padding:12px 14px;border:1px solid var(--fg);border-radius:10px;font-size:13px;font-weight:550}
+.syncbar.warn{border-style:dashed}
 .savestate{display:inline-flex;align-items:center;gap:8px;font:500 11px var(--mono);letter-spacing:.04em;text-transform:uppercase;color:var(--mute)}
 .savestate i{width:7px;height:7px;border-radius:50%;background:var(--fg)}
 .savestate.local i{background:transparent;border:1.5px solid var(--mute)}
@@ -303,6 +305,7 @@ button.thumb:hover{border-color:var(--fg)}
       <button class="tab" role="tab" id="tab-preview" aria-controls="panel-preview" aria-selected="false" type="button">Preview <span class="count" id="count">0</span></button>
     </div>
   </header>
+  <div class="syncbar" id="syncBar" hidden role="status"></div>
 
   <main>
     <!-- ADD -->
@@ -554,7 +557,7 @@ var SBY={};STATUS.forEach(function(s){SBY[s.id]=s});
 var SYM={USD:'$',CNY:'¥'};
 var LS='reel-sourcing-log-v1';
 /* ===== CLOUD SYNC: paste your Supabase values between the quotes ===== */
-var SB={url:'',key:''};
+var SB={url:'https://nvfcdtsrrjzvtjmbrfms.supabase.co',key:'sb_publishable_e93RAzdxNLms1R7jyu1hGA_bPHDelgh'}; /* url = Project URL, key = Publishable key (sb_publishable_...). Never the secret key. */
 /* ===================================================================== */
 
 var items=[],loaded=false,backend='local',dbCol=null,dl=null;
@@ -601,7 +604,8 @@ function setSave(kind){
 }
 function sbFetch(path,opt){
   opt=opt||{};
-  var h=Object.assign({apikey:SB.key,Authorization:'Bearer '+SB.key,'Content-Type':'application/json'},opt.headers||{});
+  var h=Object.assign({apikey:SB.key,'Content-Type':'application/json'},opt.headers||{});
+  if(SB.key.indexOf('eyJ')===0)h.Authorization='Bearer '+SB.key;
   return fetch(SB.url.replace(/\/+$/,'')+'/rest/v1/'+path,{method:opt.method||'GET',headers:h,body:opt.body}).then(function(r){
     if(!r.ok)return r.text().then(function(t){throw {code:'sb',message:t}});
     return r.text().then(function(t){return t?JSON.parse(t):null});
@@ -633,17 +637,46 @@ function sbRemove(id){
   return sbFetch('products?id=eq.'+encodeURIComponent(id),{method:'DELETE',headers:{Prefer:'return=minimal'}})
     .then(function(){sbPending--;sbSig=''},function(e){sbPending--;sbSig='';sbLoad().catch(function(){});throw e});
 }
-async function startSb(){
+var sbTimer=null;
+function sbBar(kind,msg,btn){
+  var el=$('#syncBar');
+  if(!kind){el.hidden=true;el.innerHTML='';return}
+  el.hidden=false;el.className='syncbar '+kind;
+  el.innerHTML='<span>'+esc(msg)+'</span>'+(btn?'<button type="button" class="btn sm" id="syncBtn">'+esc(btn)+'</button>':'');
+  var b=$('#syncBtn');if(b)b.onclick=function(){sbConnect()};
+}
+function sbReason(e){
+  var m=(e&&e.message)||'';
+  try{var j=JSON.parse(m);m=j.message||j.hint||j.error||m}catch(x){}
+  if(!m||/Failed to fetch|NetworkError|Load failed/i.test(m))return 'Cannot reach Supabase. Check the Project URL and your internet connection.';
+  if(/does not exist|schema cache|PGRST205|42P01/i.test(m))return 'The products table is missing. Run supabase-setup.sql in the Supabase SQL Editor.';
+  if(/Invalid API key|JWT|apikey|No API key/i.test(m))return 'Supabase rejected the key. Paste the Publishable key (sb_publishable_...), not the secret key.';
+  if(/row-level security|permission denied|42501/i.test(m))return 'Access is blocked. Run supabase-setup.sql again to create the access rule.';
+  return m.slice(0,160);
+}
+async function sbMerge(){
+  var loc=lsRead().filter(function(x){return !x.sample});
+  if(!loc.length)return;
+  var have={};items.forEach(function(x){have[x.id]=1});
+  var add=loc.filter(function(x){return !have[x.id]});
+  for(var i=0;i<add.length;i++)await sbPut(add[i]);
+  try{localStorage.setItem(LS+'-uploaded',JSON.stringify(loc));localStorage.removeItem(LS)}catch(e){}
+  if(add.length)toast('Uploaded '+add.length+(add.length===1?' product':' products')+' from this device to the cloud');
+}
+async function sbConnect(){
   backend='sb';
   try{
     await sbLoad();
-    if(!items.length){
-      var loc=lsRead().filter(function(x){return !x.sample});
-      for(var i=0;i<loc.length;i++)await sbPut(loc[i]);
+    await sbMerge();
+    setSave('sb');sbBar('');
+    if(!sbTimer){
+      sbTimer=setInterval(function(){sbLoad().catch(function(){setSave('paused')})},12000);
+      document.addEventListener('visibilitychange',function(){if(!document.hidden)sbLoad().catch(function(){setSave('paused')})});
     }
-  }catch(e){startLocal();toast('Cloud database not reachable. Saving on this device only.');return}
-  setInterval(function(){sbLoad().catch(function(){})},12000);
-  document.addEventListener('visibilitychange',function(){if(!document.hidden)sbLoad().catch(function(){})});
+  }catch(e){
+    loaded=true;setSave('paused');renderAll();
+    sbBar('bad','Cloud sync is not working. '+sbReason(e),'Try again');
+  }
 }
 function putItem(it){
   if(backend==='sb')return sbPut(it);
@@ -673,8 +706,8 @@ async function initStore(){
     document.body.appendChild(a);a.click();a.remove();setTimeout(function(){URL.revokeObjectURL(u)},4000);res({status:'saved'});
   })}}}
   renderExportMenu();
-  if(!db&&SB.url&&SB.key){startSb();return}
-  if(!db){startLocal();return}
+  if(!db&&SB.url&&SB.key){sbConnect();return}
+  if(!db){startLocal();sbBar('warn','Cloud sync is off, so products are saved on this device only. Add your Supabase URL and key at the top of the script in index.html to sync across devices.');return}
   backend='db';dbCol=db.collection('products');
   try{
     dbCol.onSnapshot(function(snap){
