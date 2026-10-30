@@ -1060,11 +1060,11 @@ function entries(it){
   var ps=all.filter(function(x){return x.price!=null}).map(function(x){return x.price});
   return {all:all,low:ps.length?Math.min.apply(null,ps):null,n:ps.length};
 }
-function targetLine(it,low){
-  if(it.target==null)return '<span class="tline">Set a target to track it</span>';
-  if(low==null)return '<span class="tline">No price yet</span>';
-  if(low<=it.target)return '<span class="tline hit"><i class="dot d-found"></i>Target reached</span>';
-  return '<span class="tline"><i class="dot"></i>'+esc(fmt(low-it.target,it.cur))+' above target</span>';
+function foundLine(it,low){
+  if(it.found==null)return '<span class="tline">Type the lower price you found</span>';
+  if(low==null)return '<span class="tline"><i class="dot d-found"></i>Found '+esc(fmt(it.found,it.cur))+'</span>';
+  if(it.found<low){var pct=Math.round((low-it.found)/low*100);return '<span class="tline hit"><i class="dot d-found"></i>'+esc(fmt(low-it.found,it.cur))+' lower ('+pct+'%)</span>'}
+  return '<span class="tline"><i class="dot"></i>Not lower than '+esc(fmt(low,it.cur))+'</span>';
 }
 function quoteRow(it,x,E){
   var id=esc(it.id),isLow=x.price!=null&&x.price===E.low&&E.n>1;
@@ -1092,7 +1092,7 @@ function cardHtml(r){
   return '<article class="scard"><div class="stop">'+photo+'<div class="sinfo"><div class="snm">'+esc(it.name)+(it.sample?'<span class="tag">Sample</span>':'')+'</div>'+
     '<div class="smeta"><span>#'+r.n+'</span>'+statusSelect(it)+(it.reel?link(it.reel,'Reel'):'')+'</div></div></div>'+
     '<div class="sprices"><div><span class="cap2">Lowest price</span><div class="sprice mono">'+(E.low==null?'—':esc(fmt(E.low,it.cur)))+'</div></div>'+
-    '<div class="starget"><label class="cap2" for="t-'+id+'">Target price</label><input class="in mono" id="t-'+id+'" data-target="'+id+'" type="text" inputmode="decimal" placeholder="0.00" value="'+(it.target==null?'':esc(it.target))+'">'+targetLine(it,E.low)+'</div></div>'+
+    '<div class="starget"><label class="cap2" for="fp-'+id+'">Found price</label><input class="in mono" id="fp-'+id+'" data-found="'+id+'" type="text" inputmode="decimal" placeholder="0.00" value="'+(it.found==null?'':esc(it.found))+'">'+foundLine(it,E.low)+(it.found!=null&&(it.price==null||it.found<it.price)?'<button type="button" class="btn sm primary" data-sact="applyfound" data-id="'+id+'">Use as best price</button>':'')+'</div></div>'+
     '<ul class="qlist">'+E.all.map(function(x){return quoteRow(it,x,E)}).join('')+'</ul>'+
     '<div class="sfoot"><button type="button" class="btn sm" data-sact="addq" data-id="'+id+'">+ Add quote</button><button type="button" class="btn sm" data-sact="edit" data-id="'+id+'">Edit product</button><button type="button" class="btn sm" data-sact="unshort" data-id="'+id+'">Remove from Shortlist</button></div></article>';
 }
@@ -1100,11 +1100,11 @@ function renderShort(){
   var list=items.map(function(it,i){return {it:it,n:i+1}}).filter(function(r){return r.it.shortlisted});
   $('#countS').textContent=list.length;
   var root=$('#shortList');
-  var hit=list.filter(function(r){var l=entries(r.it).low;return r.it.target!=null&&l!=null&&l<=r.it.target}).length;
-  $('#sumS').textContent=list.length?list.length+(list.length===1?' product':' products')+' on the shortlist · '+hit+' at target':'Products your manager picked. Keep looking for lower prices here.';
+  var hit=list.filter(function(r){var l=entries(r.it).low;return r.it.found!=null&&(l==null||r.it.found<l)}).length;
+  $('#sumS').textContent=list.length?list.length+(list.length===1?' product':' products')+' on the shortlist · '+hit+' with a lower price found':'Products your manager picked. Keep looking for lower prices here.';
   if(!loaded){root.innerHTML='<div class="skel" aria-hidden="true"><div></div><div></div><div></div></div>';return}
   if(!list.length){
-    root.innerHTML='<div class="empty"><h3>Nothing shortlisted yet</h3><p>When your manager likes a product, tap the star at the end of its row in Preview. It moves here, where you can add lower quotes and set a target price.</p><button type="button" class="btn primary" data-go="preview">Go to Preview</button></div>';
+    root.innerHTML='<div class="empty"><h3>Nothing shortlisted yet</h3><p>When your manager likes a product, tap the star at the end of its row in Preview. It moves here, where you can log the lower prices you find.</p><button type="button" class="btn primary" data-go="preview">Go to Preview</button></div>';
     return;
   }
   root.innerHTML='<div class="cards">'+list.map(cardHtml).join('')+'</div>';
@@ -1157,6 +1157,13 @@ function makeBest(itemId,qid){
   var next=Object.assign({},it,{price:q.price,platform:q.platform||'',seller:q.seller||'',link:q.link||'',moq:q.moq==null?null:q.moq,offers:offers,updatedAt:Date.now()});
   putItem(next).then(function(){toast('Now the best price. The old one is kept as a quote.')},function(er){toast(errMsg(er))});
 }
+function applyFound(id){
+  var it=items.find(function(x){return x.id===id});if(!it||it.found==null)return;
+  var offers=(it.offers||[]).slice();
+  if(it.price!=null)offers.push({id:'q'+Date.now().toString(36)+Math.random().toString(36).slice(2,5),price:it.price,platform:it.platform||'',seller:it.seller||'',link:it.link||'',moq:it.moq==null?null:it.moq,note:'Previous best'});
+  var next=Object.assign({},it,{price:it.found,found:null,platform:'',seller:'',link:'',moq:null,offers:offers,updatedAt:Date.now()});
+  putItem(next).then(function(){toast('Price saved. Now fill in the new seller and link.');openEdit(id)},function(er){toast(errMsg(er))});
+}
 function bindShort(){
   $('#qform').addEventListener('submit',onQuoteSave);
   $('#qX').addEventListener('click',closeQuote);
@@ -1176,6 +1183,7 @@ function bindShort(){
       putItem(Object.assign({},it,{offers:(it.offers||[]).filter(function(x){return x.id!==q}),updatedAt:Date.now()})).then(function(){toast('Quote deleted')},function(er){toast(errMsg(er));renderShort()});
     }
     else if(a==='best')makeBest(id,q);
+    else if(a==='applyfound')applyFound(id);
     else if(a==='edit')openEdit(id);
     else if(a==='unshort')toggleShort(id);
     else if(a==='photo'){
@@ -1190,16 +1198,16 @@ function bindShort(){
       putItem(Object.assign({},it,{status:s.value,updatedAt:Date.now()})).catch(function(er){toast(errMsg(er));renderShort()});
       return;
     }
-    var t=e.target.closest('input[data-target]');
+    var t=e.target.closest('input[data-found]');
     if(t){
-      var p=items.find(function(x){return x.id===t.dataset.target});if(!p)return;
+      var p=items.find(function(x){return x.id===t.dataset.found});if(!p)return;
       var v=t.value.trim().replace(',','.'),n=v===''?null:Number(v);
-      if(n!==null&&(!isFinite(n)||n<0)){toast('Enter a target like 0.40');renderShort();return}
-      if(n===(p.target==null?null:p.target))return;
-      putItem(Object.assign({},p,{target:n,updatedAt:Date.now()})).catch(function(er){toast(errMsg(er));renderShort()});
+      if(n!==null&&(!isFinite(n)||n<0)){toast('Enter a price like 0.38');renderShort();return}
+      if(n===(p.found==null?null:p.found))return;
+      putItem(Object.assign({},p,{found:n,updatedAt:Date.now()})).catch(function(er){toast(errMsg(er));renderShort()});
     }
   });
-  root.addEventListener('keydown',function(e){if(e.key==='Enter'&&e.target.matches('input[data-target]')){e.preventDefault();e.target.blur()}});
+  root.addEventListener('keydown',function(e){if(e.key==='Enter'&&e.target.matches('input[data-found]')){e.preventDefault();e.target.blur()}});
 }
 
 /* ---------- export ---------- */
@@ -1278,14 +1286,14 @@ async function buildXlsx(){
   var sl=items.filter(function(x){return x.shortlisted});
   if(sl.length){
     var w2=wb.addWorksheet('Shortlist',{views:[{state:'frozen',ySplit:1}]});
-    var H2=['Product','Target','Role','Price','Platform','Seller','MOQ','Link','Note'],W2=[34,11,18,12,14,22,9,12,36];
+    var H2=['Product','Found price','Role','Price','Platform','Seller','MOQ','Link','Note'],W2=[34,11,18,12,14,22,9,12,36];
     w2.columns=H2.map(function(h,i){return {header:h,key:'s'+i,width:W2[i]}});
     w2.getRow(1).height=26;
     w2.getRow(1).eachCell(function(c){c.font={bold:true,color:{argb:'FFFFFFFF'},size:11};c.fill={type:'pattern',pattern:'solid',fgColor:{argb:'FF0A0A0A'}};c.alignment={vertical:'middle'}});
     sl.forEach(function(it){
       var E=entries(it),fm=(it.cur==='CNY'?'"¥"':'"$"')+'#,##0.00';
       E.all.forEach(function(x,i){
-        var r=w2.addRow([i===0?it.name:'',i===0&&it.target!=null?it.target:'',(x.main?'Current best':'Quote')+(x.price!=null&&x.price===E.low&&E.n>1?' · Lowest':''),x.price==null?'':x.price,x.platform||'',x.seller||'',x.moq==null?'':x.moq,x.link?{text:'🔗 Link',hyperlink:x.link}:'',x.note||'']);
+        var r=w2.addRow([i===0?it.name:'',i===0&&it.found!=null?it.found:'',(x.main?'Current best':'Quote')+(x.price!=null&&x.price===E.low&&E.n>1?' · Lowest':''),x.price==null?'':x.price,x.platform||'',x.seller||'',x.moq==null?'':x.moq,x.link?{text:'🔗 Link',hyperlink:x.link}:'',x.note||'']);
         r.getCell(2).numFmt=fm;r.getCell(4).numFmt=fm;
         if(i===0)r.getCell(1).font={bold:true};
         r.eachCell(function(c){c.border={bottom:{style:'thin',color:{argb:'FFE0E0E0'}}};c.alignment={vertical:'middle',wrapText:true}});
